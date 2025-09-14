@@ -5,7 +5,7 @@ import asyncio
 
 from app.models.schemas import (
     GeocodeRequest, GeocodeResponse,
-    ServiceSearchRequest, ServiceSearchResponse,
+    ServiceSearchRequest, ServiceSearchResponse, ServiceLocation,
     DemographicsRequest, DemographicsResponse,
     RouteRequest, RouteResponse,
     Location, ErrorResponse
@@ -72,38 +72,87 @@ async def search_services(request: ServiceSearchRequest):
     """
     Find nearby services (hospitals, restaurants, etc.)
     
-    
+    **Business Use Cases:**
+    - Healthcare accessibility analysis
+    - Competitor analysis for retail
+    - Service gap analysis
+    - Emergency response planning
     """
-    # This would integrate with Esri Places API or similar
-    # For now, return mock data structure
-    return ServiceSearchResponse(
-        search_location=Location(
+    try:
+        # Search for places using Esri geocoding service
+        places = await geocoding_service.search_places(
             latitude=request.latitude,
-            longitude=request.longitude
-        ),
-        service_type=request.service_type,
-        results=[],  # Would be populated by actual service
-        total_found=0,
-        search_radius_miles=request.radius_miles
-    )
+            longitude=request.longitude,
+            category=request.service_type.value,
+            radius_miles=request.radius_miles,
+            limit=request.limit
+        )
+        
+        # Convert to ServiceLocation objects
+        service_locations = []
+        for place in places:
+            service_location = ServiceLocation(
+                name=place["name"],
+                address=place["address"],
+                location=Location(
+                    latitude=place["latitude"],
+                    longitude=place["longitude"]
+                ),
+                distance_miles=place["distance_miles"],
+                categories=[place["category"]]
+            )
+            service_locations.append(service_location)
+        
+        return ServiceSearchResponse(
+            search_location=Location(
+                latitude=request.latitude,
+                longitude=request.longitude
+            ),
+            service_type=request.service_type,
+            results=service_locations,
+            total_found=len(service_locations),
+            search_radius_miles=request.radius_miles
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/services/nearest", tags=["Services"])
 async def find_nearest_services(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     service_type: str = Query(..., description="hospital, pharmacy, restaurant, etc."),
+    radius_miles: float = Query(5.0, gt=0, le=50, description="Search radius in miles"),
     limit: int = Query(10, ge=1, le=50)
 ):
     """
     Find the nearest services of a specific type
+    
+    **Business Use Cases:**
+    - "Find nearest hospital"
+    - Emergency service location
+    - Customer convenience analysis
     """
-    # Would implement actual service search logic
-    return {
-        "search_location": {"latitude": lat, "longitude": lon},
-        "service_type": service_type,
-        "nearest_services": [],
-        "message": "Service search implementation coming soon"
-    }
+    try:
+        # Search for places using Esri geocoding service
+        places = await geocoding_service.search_places(
+            latitude=lat,
+            longitude=lon,
+            category=service_type,
+            radius_miles=radius_miles,
+            limit=limit
+        )
+        
+        return {
+            "search_location": {"latitude": lat, "longitude": lon},
+            "service_type": service_type,
+            "radius_miles": radius_miles,
+            "nearest_services": places,
+            "total_found": len(places)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Demographics endpoints
 @router.post("/demographics", response_model=DemographicsResponse, tags=["Demographics"])
