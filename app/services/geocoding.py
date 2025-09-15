@@ -42,21 +42,21 @@ class GeocodingService:
                 params["token"] = settings.arcgis_api_key
             
             url = f"{self.base_url}/findAddressCandidates"
-            logger.info(f"🔍 Geocoding request: {address} (country: {country})")
-            logger.debug(f"📡 URL: {url}")
-            logger.debug(f"📊 Params: {params}")
+            logger.info(f"Geocoding request: {address} (country: {country})")
+            logger.debug(f"URL: {url}")
+            logger.debug(f"Params: {params}")
             
             # Make request to Esri Geocoding Service
             response = await self.client.get(url, params=params)
-            logger.info(f"📡 Response status: {response.status_code}")
+            logger.info(f"Response status: {response.status_code}")
             
             response.raise_for_status()
             data = response.json()
-            logger.debug(f"📊 Response data: {json.dumps(data, indent=2)}")
+            logger.debug(f"Response data: {json.dumps(data, indent=2)}")
             
             if not data.get("candidates"):
-                logger.warning(f"⚠️ No geocoding results found for address: {address}")
-                logger.debug(f"📊 Full response: {json.dumps(data, indent=2)}")
+                logger.warning(f"No geocoding results found for address: {address}")
+                logger.debug(f"Full response: {json.dumps(data, indent=2)}")
                 raise ValueError(f"No geocoding results found for address: {address}")
             
             # Get best candidate
@@ -64,8 +64,8 @@ class GeocodingService:
             location_data = candidate["location"]
             attributes = candidate.get("attributes", {})
             
-            logger.info(f"✅ Geocoded '{address}' -> lat: {location_data['y']:.4f}, lon: {location_data['x']:.4f}")
-            logger.info(f"📊 Confidence: {candidate.get('score', 0.0)}, Match type: {attributes.get('Addr_type', 'Unknown')}")
+            logger.info(f"Geocoded '{address}' -> lat: {location_data['y']:.4f}, lon: {location_data['x']:.4f}")
+            logger.info(f"Confidence: {candidate.get('score', 0.0)}, Match type: {attributes.get('Addr_type', 'Unknown')}")
             
             return GeocodeResponse(
                 location=Location(
@@ -78,11 +78,22 @@ class GeocodingService:
             )
             
         except httpx.HTTPError as e:
-            
+            logger.error(f"HTTP Error: {str(e)}")
             logger.error(f"Response status: {getattr(e.response, 'status_code', 'N/A')}")
-            logger.error(f" Response text: {getattr(e.response, 'text', 'N/A')}")
+            logger.error(f"Response text: {getattr(e.response, 'text', 'N/A')}")
             raise Exception(f"Geocoding service HTTP error: {str(e)}")
-       
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON Decode Error: {str(e)}")
+            raise Exception(f"Invalid JSON response from geocoding service: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Value Error: {str(e)}")
+            raise e  # Re-raise ValueError as-is
+        except Exception as e:
+            logger.error(f"Unexpected Error: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise Exception(f"Geocoding failed with unexpected error: {str(e)}")
+    
     async def reverse_geocode(self, latitude: float, longitude: float) -> Dict[str, Any]:
         """
         Reverse geocode coordinates to get address information
@@ -200,19 +211,19 @@ class GeocodingService:
                 params["token"] = settings.arcgis_api_key
             
             url = f"{self.base_url}/findAddressCandidates"
-            logger.info(f"🏥 Searching for {category} near ({latitude:.4f}, {longitude:.4f})")
-            logger.debug(f"📡 URL: {url}")
-            logger.debug(f"📊 Params: {params}")
+            logger.info(f"Searching for {category} near ({latitude:.4f}, {longitude:.4f})")
+            logger.debug(f"URL: {url}")
+            logger.debug(f"Params: {params}")
             
             response = await self.client.get(url, params=params)
-            logger.info(f"📡 Response status: {response.status_code}")
+            logger.info(f"Response status: {response.status_code}")
             
             response.raise_for_status()
             data = response.json()
-            logger.debug(f"📊 Response data: {json.dumps(data, indent=2)}")
+            logger.debug(f"Response data: {json.dumps(data, indent=2)}")
             
             if not data.get("candidates"):
-                logger.warning(f"⚠️ No {category} results found near ({latitude:.4f}, {longitude:.4f})")
+                logger.warning(f"No {category} results found near ({latitude:.4f}, {longitude:.4f})")
                 return []
             
             places = []
@@ -241,10 +252,12 @@ class GeocodingService:
             # Sort by confidence/score
             places.sort(key=lambda x: x["confidence"], reverse=True)
             
-            logger.info(f"✅ Found {len(places)} {category} locations")
+            logger.info(f"Found {len(places)} {category} locations")
             return places
             
-       
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP Error in place search: {str(e)}")
+            raise Exception(f"Place search service HTTP error: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected Error in place search: {str(e)}")
             import traceback
