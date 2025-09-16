@@ -2,7 +2,7 @@
 
 A comprehensive GIS API for location-based business intelligence using Esri services, featuring both a FastAPI backend and an interactive Streamlit dashboard.
 
-##Features
+## Features(Scroll Down to look at working Images)
 
 - **Address Geocoding**: Convert addresses to geographic coordinates
 - **Place Search**: Find nearby places and services
